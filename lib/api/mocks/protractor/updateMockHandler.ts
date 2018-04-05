@@ -1,32 +1,46 @@
-import helper from '../../helper';
-import Registry from '../../../registry';
 import UpdateMockHandler from '../updateMockHandler';
+import {Store} from 'rxjs-reselect';
+import {State} from '../../../store/index';
+import {Delay, DelayActionTypes} from '../../../store/actions/delays';
+import {Select, SelectionActionTypes} from '../../../store/actions/selections';
 
 /** Handler that takes care of updating the mock configuration for protractor. */
 class ProtractorUpdateMockHandler extends UpdateMockHandler {
     /** @inheritDoc */
-    handlePassThroughScenario(registry: Registry, identifier: string, ngApimockId: string): void {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        delete registry.sessions[ngApimockId].selections[identifier];
+    handlePassThroughScenario(identifier: string, ngApimockId: string): void {
+        this._registry.dispatch({
+            type: SelectionActionTypes.Select,
+            identifier,
+            selection: null,
+            ngApimockId
+        });
     }
 
     /** @inheritDoc */
-    handleScenarioSelection(registry: Registry, identifier: string, scenario: string, ngApimockId: string): void {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        registry.sessions[ngApimockId].selections[identifier] = scenario;
+    handleScenarioSelection(identifier: string, scenario: string, ngApimockId: string): void {
+        this._registry.dispatch({
+            type: SelectionActionTypes.Select,
+            identifier,
+            selection: scenario,
+            ngApimockId
+        });
+        this._scenarioSelected$.next({
+            identifier,
+            scenario,
+            ngApimockId
+        });
     }
 
     /** @inheritDoc */
-    handleDelay(registry: Registry, identifier: string, delay: number, ngApimockId?: string): void {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        registry.sessions[ngApimockId].delays[identifier] = delay;
+    handleDelay(identifier: string, delay: number, ngApimockId?: string): void {
+        this._registry.dispatch({
+            type: DelayActionTypes.Delay,
+            identifier,
+            delay,
+            ngApimockId
+        });
     }
 
-    /** @inheritDoc */
-    handleEcho(registry: Registry, identifier: string, echo: boolean, ngApimockId?: string): void {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        registry.sessions[ngApimockId].echos[identifier] = echo;
-    }
 }
 
 export default ProtractorUpdateMockHandler;

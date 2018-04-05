@@ -1,16 +1,18 @@
 import SetMocksToPassThroughsHandler from '../setMocksToPassThroughsHandler';
-import Registry from '../../../registry';
+import {selectors, State} from '../../../store/index';
+import {Store} from 'rxjs-reselect';
+import {Observable} from 'rxjs/Observable';
 
 /** Handler that takes care of setting the mocks to passThroughs for runtime. */
 class RuntimeSetMocksToPassThroughsHandler extends SetMocksToPassThroughsHandler {
     /** @inheritDoc */
-    setToPassThroughs(registry: Registry, ngApimockId?: string): void {
-        registry.selections = {};
+    setToPassThroughs(ngApimockId?: string): void {
+
     }
 
     /** @inheritDoc */
-    getSelections(registry: Registry, ngApimockId: string): {} {
-        return registry.selections;
+    getSelections(): Observable<{ [key: string]: string }> {
+        return this._registry.select(selectors.getRuntimeSelections);
     }
 }
 

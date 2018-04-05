@@ -11,8 +11,7 @@ Feature: Change responses
   in order to run the application against mocks.
 
   Background:
-    Given a mock with name download has marked binary-download as its default scenario
-    And a mock with name list has no scenario marked as default
+    Given a mock with name list has no scenario marked as default
     And a mock with name update has marked successful as its default scenario
 
     # Verify without selecting any scenario
@@ -21,18 +20,6 @@ Feature: Change responses
     Given I open the test page
     Then the passThrough response should be returned for mock with name list
     And the status code should be undefined for mock with name list
-
-  Scenario: Post me
-    Given I open the test page
-    When I post data
-    Then the successful response should be returned for mock with name update
-    And the status code should be undefined for mock with name update
-
-  Scenario: Download binary
-    Given I open the test page
-    When I download the pdf
-    Then the binary-download response should be downloaded for mock with name download
-
 
     ### Scenario's ###
 
@@ -44,22 +31,6 @@ Feature: Change responses
     And I refresh
     Then the groceries response should be returned for mock with name list
 
-    # Because jsonp calls remove all headers, we have no way to determine which instance of protractor is running.
-    # The only thing you can do is to set a default response.
-    # Because we have not set a default response, 404 will be returned
-  Scenario: Select another scenario and get the list using jsonp
-    Given I open the test page
-    When I select wishes for mock with name list
-    And I refresh using jsonp
-    And the status code should be 404 for mock with name list
-
-  Scenario: Select another scenario and post me
-    Given I open the test page
-    And I select anotherSuccess for mock with name update
-    And I post data
-    Then the anotherSuccess response should be returned for mock with name update
-    And the status code should be undefined for mock with name update
-
     # Verify after resetting the scenario's to default
 
   Scenario: Reset scenario's to default
@@ -68,9 +39,6 @@ Feature: Change responses
     And I refresh
     Then the passThrough response should be returned for mock with name list
     And the status code should be undefined for mock with name list
-    And I post data
-    Then the successful response should be returned for mock with name update
-    And the status code should be undefined for mock with name update
 
     # Verify after resetting the scenario's to passThrough
 
@@ -79,11 +47,6 @@ Feature: Change responses
     And I reset the scenario's to passThroughs
     And I refresh
     Then the passThrough response should be returned for mock with name list
-    And the status code should be undefined for mock with name list
-    And I post data
-    Then the passThrough response should be returned for mock with name update
-    And the status code should be undefined for mock with name update
-
 
     ### Variables ###
 
@@ -155,21 +118,6 @@ Feature: Change responses
     And I refresh
     Then the groceries response should be returned with interpolated value 6 for key numberOfApples for mock with name list
     Then the groceries response should be returned with interpolated value Yvonne for key who for mock with name list
-
-
-    ### Echoing ###
-
-    # No way to verify this. check the log manually
-  Scenario: Enable echo
-    Given I open the test page
-    And I enable echo for mock with name update
-    Then echoing should be enabled for mock with name update
-
-  Scenario: Disable echo
-    Given I open the test page
-    And I disable echo for mock with name update
-    Then echoing should be disabled for mock with name update
-
 
     ### Delaying ###
 

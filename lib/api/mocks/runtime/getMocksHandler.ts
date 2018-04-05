@@ -1,21 +1,20 @@
 import GetMocksHandler from '../getMocksHandler';
-import Registry from '../../../registry';
+import {selectors, State} from '../../../store/index';
+import {Store} from 'rxjs-reselect';
+
+import 'rxjs/add/operator/map';
+import {Observable} from 'rxjs/Observable';
 
 /** Handler that takes care of getting all the mocks for runtime. */
 class RuntimeGetMocksHandler extends GetMocksHandler {
     /** @inheritDoc */
-    getSelections(registry: Registry): { [key: string]: string } {
-        return registry.selections;
+    getSelections(): Observable<{ [key: string]: string }> {
+        return this._registry.select(selectors.getRuntimeSelections);
     }
 
     /** @inheritDoc */
-    getEchos(registry: Registry): { [key: string]: boolean } {
-        return registry.echos;
-    }
-
-    /** @inheritDoc */
-    getDelays(registry: Registry): { [key: string]: number } {
-        return registry.delays;
+    getDelays(): Observable<{ [key: string]: number }> {
+        return this._registry.select(selectors.getRuntimeDelays);
     }
 }
 

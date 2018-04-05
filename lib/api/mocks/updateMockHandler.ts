@@ -1,10 +1,52 @@
 import * as http from 'http';
 import {httpHeaders} from '../../http';
-import Registry from '../../registry';
 import Handler from '../../handler';
+import {Store} from 'rxjs-reselect';
+import {selectors, State} from '../../store/index';
+import {first} from 'rxjs/operators/first';
+import {map} from 'rxjs/operators/map';
+import {Subject} from 'rxjs/Subject';
+
+import 'rxjs/add/operator/withLatestFrom';
+import 'rxjs/add/operator/map';
+import 'rxjs/add/operator/switchMap';
+import {Observable} from 'rxjs/Observable';
+import {Socket} from '../../store/reducers/sockets';
 
 /** Abstract Handler for Updating mock state. */
 abstract class UpdateMockHandler implements Handler {
+
+    protected _scenarioSelected$ = new Subject<{ identifier: string; scenario: string; ngApimockId?: string }>();
+
+    constructor(protected _registry: Store<State>) {
+
+        const sockets$: Observable<{runtime: Socket[]; protractor: {[index: string]: Socket}}> = Observable.combineLatest(
+            this._registry.select(selectors.getProtractorSocketEntities),
+            this._registry.select(selectors.getRuntimeSockets)
+        ).map(([protractor, runtime]) => ({runtime, protractor}));
+
+        this._scenarioSelected$
+            .switchMap(({identifier, scenario, ngApimockId}) => {
+                return this._registry.select(selectors.getMockEntities)
+                    .map((mocks) => {
+                        return {
+                            response: mocks[identifier].responses[scenario],
+                            ngApimockId
+                        };
+                    });
+            })
+            .withLatestFrom(sockets$)
+            .subscribe(([{response, ngApimockId}, allSockets]) => {
+                const sockets = ngApimockId ? [allSockets.protractor[ngApimockId]] : allSockets.runtime;
+
+                sockets
+                    .filter(socket => socket && socket.readyState === socket.OPEN)
+                    .forEach((socket) => {
+                        socket.send(JSON.stringify(response.data));
+                    });
+            });
+
+    }
 
     /**
      * Handle the passthrough selection.
@@ -12,7 +54,7 @@ abstract class UpdateMockHandler implements Handler {
      * @param identifier The mock identifier.
      * @param ngApimockId The ngApimock id.
      */
-    abstract handlePassThroughScenario(registry: Registry, identifier: string, ngApimockId?: string): void;
+    abstract handlePassThroughScenario(identifier: string, ngApimockId?: string): void;
 
     /**
      * Handle the scenario selection.
@@ -20,16 +62,7 @@ abstract class UpdateMockHandler implements Handler {
      * @param identifier The mock identifier.
      * @param ngApimockId The ngApimock id.
      */
-    abstract handleScenarioSelection(registry: Registry, identifier: string, scenario: string, ngApimockId?: string): void;
-
-    /**
-     * Handle the echo toggling.
-     * @param registry The registry.
-     * @param identifier The mock identifier.
-     * @param echo Echo indicator.
-     * @param ngApimockId The ngApimock id.
-     */
-    abstract handleEcho(registry: Registry, identifier: string, echo: boolean, ngApimockId?: string): void;
+    abstract handleScenarioSelection(identifier: string, scenario: string, ngApimockId?: string): void;
 
     /**
      * Handle the delay.
@@ -38,7 +71,7 @@ abstract class UpdateMockHandler implements Handler {
      * @param delay The delay in millis.
      * @param ngApimockId The ngApimock id.
      */
-    abstract handleDelay(registry: Registry, identifier: string, delay: number, ngApimockId?: string): void;
+    abstract handleDelay(identifier: string, delay: number, ngApimockId?: string): void;
 
     /**
      * @inheritDoc
@@ -50,7 +83,7 @@ abstract class UpdateMockHandler implements Handler {
      * - toggle echo state
      * - delay the mock response
      */
-    handleRequest(request: http.IncomingMessage, response: http.ServerResponse, next: Function, registry: Registry,
+    handleRequest(request: http.IncomingMessage, response: http.ServerResponse, next: Function,
                   ngApimockId: string): void {
         const requestDataChunks: Buffer[] = [];
 
@@ -60,31 +93,35 @@ abstract class UpdateMockHandler implements Handler {
 
         request.on('end', () => {
             const data = JSON.parse(Buffer.concat(requestDataChunks).toString());
-            try {
-                const match = registry.mocks.filter(_mock => _mock.identifier === data.identifier)[0];
-                if (match !== undefined) {
+
+            const identifier = data.identifier;
+
+            const mock$ = this._registry.select(selectors.getMockEntities)
+                .pipe(first(), map(mocks => mocks[identifier]));
+
+            mock$.subscribe((mock) => {
+                if (mock) {
                     if (this.isScenarioSelectionRequest(data)) {
                         if (this.isPassThroughScenario(data.scenario)) {
-                            this.handlePassThroughScenario(registry, data.identifier, ngApimockId);
-                        } else if (match.responses[data.scenario]) {
-                            this.handleScenarioSelection(registry, data.identifier, data.scenario, ngApimockId);
+                            this.handlePassThroughScenario(data.identifier, ngApimockId);
+                        } else if (mock.responses[data.scenario]) {
+                            this.handleScenarioSelection(data.identifier, data.scenario, ngApimockId);
                         } else {
                             throw new Error('No scenario matching name [' + data.scenario + '] found');
                         }
-                    } else if (this.isEchoRequest(data)) {
-                        this.handleEcho(registry, data.identifier, data.echo, ngApimockId);
                     } else if (this.isDelayResponseRequest(data)) {
-                        this.handleDelay(registry, data.identifier, data.delay, ngApimockId);
+                        this.handleDelay(data.identifier, data.delay, ngApimockId);
                     }
+
+                    response.writeHead(200, httpHeaders.CONTENT_TYPE_APPLICATION_JSON);
+                    response.end();
                 } else {
-                    throw new Error('No mock matching identifier [' + data.identifier + '] found');
+                    response.writeHead(409, httpHeaders.CONTENT_TYPE_APPLICATION_JSON);
+                    response.end(JSON.stringify({
+                        message: 'No mock matching identifier [' + data.identifier + '] found'
+                    }, ['message']));
                 }
-                response.writeHead(200, httpHeaders.CONTENT_TYPE_APPLICATION_JSON);
-                response.end();
-            } catch (e) {
-                response.writeHead(409, httpHeaders.CONTENT_TYPE_APPLICATION_JSON);
-                response.end(JSON.stringify(e, ['message']));
-            }
+            });
         });
     }
 
@@ -96,15 +133,6 @@ abstract class UpdateMockHandler implements Handler {
      */
     private isScenarioSelectionRequest(data: any): boolean {
         return data.scenario !== undefined;
-    }
-
-    /**
-     * Indicates if the given request wants to toggle echo.
-     * @param data The request data.
-     * @returns {boolean} indicator The indicator.
-     */
-    private isEchoRequest(data: any): boolean {
-        return data.echo !== undefined;
     }
 
     /**

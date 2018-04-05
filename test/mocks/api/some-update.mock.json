@@ -1,0 +1,24 @@
+{
+  "request": {
+    "$ref": "test/mocks/api/requests/duplicate-request.schema.json"
+  },
+  "name": "update",
+  "isArray": true,
+  "responses": {
+    "successful": {
+      "default": true,
+      "data": {}
+    },
+    "wishes": {
+      "data": [{"title":"Ferrari f40"}, {"title": "Koenigsegg One:1"}]
+    },
+    "other": {
+      "data": [{"title":"Red-bull RB13"}],
+      "delay": 4000
+    },
+    "internal-server-error": {
+    }
+  }
+}
+
+

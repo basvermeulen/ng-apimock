@@ -1,26 +1,44 @@
 import NgApimockHandler from '../ngApimockHandler';
-import Registry from '../registry';
+import {selectors, State} from '../store/index';
+import {Store} from 'rxjs-reselect';
+import {Add, Remove, SocketActionTypes} from '../store/actions/sockets';
+import {Observable} from 'rxjs/Observable';
+
+import 'rxjs/add/operator/filter';
+import {Socket} from '../store/reducers/sockets';
 
 /** Handler for a request for runtime. */
 class RuntimeNgApimockHandler extends NgApimockHandler {
-    /** @inheritDoc */
-    getSelection(registry: Registry, identifier: string, ngApimockId: string): string {
-        return registry.selections[identifier];
+    getSockets(): Observable<Socket[]> {
+        return this._registry.select(selectors.getRuntimeSockets);
     }
 
     /** @inheritDoc */
-    getVariables(registry: Registry, ngApimockId?: string): {} {
-        return registry.variables;
+    getSelection(identifier: string): Observable<string> {
+        return this._registry.select(selectors.getRuntimeSelections)
+            .map(selections => selections[identifier]);
     }
 
     /** @inheritDoc */
-    getEcho(registry: Registry, identifier: string): boolean {
-        return registry.echos[identifier];
+    getDelay(identifier: string): Observable<number> {
+        return this._registry.select(selectors.getRuntimeDelays)
+            .map(delays => delays[identifier]);
     }
 
-    /** @inheritDoc */
-    getDelay(registry: Registry, identifier: string): number {
-        return registry.delays[identifier];
+    addSocket(socket: Socket): void {
+        this._registry.dispatch({
+            type: SocketActionTypes.Add,
+            socket
+        });
+        this._socketAdded$.next({socket});
+    }
+
+    removeSocket(socket: Socket): void {
+        this._registry.dispatch({
+            type: SocketActionTypes.Remove,
+            socket
+        });
+        this._socketRemoved$.next({socket});
     }
 }
 

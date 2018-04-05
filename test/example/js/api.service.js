@@ -1,48 +1,26 @@
 (function () {
     'use strict';
 
-    function Api($resource, $window, $document, $sce) {
-        return $resource('/online/rest/some/api/:x/and/:y', {
-            x: '@x',
-            y: '@y',
-        }, {
-            fetch: {
-                method: 'GET',
-                isArray: true
-            },
-            fetchAsJsonP: {
-                method: 'JSONP',
-                isArray: true
-            },
-            post: {
-                method: 'POST',
-                isArray: false
-            },
-            download: {
-                url: '/online/rest/some/api/pdf',
-                method: 'GET',
-                headers: {
-                    accept: 'application/pdf'
-                },
-                responseType: 'arraybuffer',
-                transformResponse: function (data) {
-                    var fileName = 'my.pdf';
-                    var blob = new $window.Blob([data], {type: 'application/pdf'}),
-                        fileURL = ($window.URL || $window.webkitURL).createObjectURL(blob),
-                        a = $document[0].createElement('a');
+    function Api($websocket, $resource, $window, $document, $sce) {
 
-                    a.download = fileName;
-                    a.href = $sce.trustAsResourceUrl(fileURL);
-                    var event = document.createEvent('MouseEvents');
-                    event.initEvent('click', true, false);
-                    a.dispatchEvent(event);
-                    return;
-                }
-            }
-        });
+        var connection = $websocket('ws://localhost:9900/api');
+
+        return {
+            send: send,
+            response: response
+        };
+
+        function send(data) {
+            connection.send(JSON.stringify(data));
+        }
+
+        function response(callback) {
+            connection.onMessage(callback);
+        }
+
     }
 
-    Api.$inject = ['$resource', '$window', '$document', '$sce'];
+    Api.$inject = ['$websocket', '$resource', '$window', '$document', '$sce'];
 
     angular
         .module('ngApimock-example')

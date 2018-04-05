@@ -1,17 +1,22 @@
 import * as http from 'http';
 import {httpHeaders} from '../../http';
 import Handler from '../../handler';
-import Registry from '../../registry';
+import {Store} from 'rxjs-reselect';
+import {selectors, State} from '../../store/index';
+import {Observable} from 'rxjs/Observable';
 
 /** Abstract Handler for Resetting mocks to defaults. */
 abstract class ResetMocksToDefaultsHandler implements Handler {
+
+    constructor(protected _registry: Store<State>) {
+    }
 
     /**
      * Resets the selections to defaults.
      * @param registry The registry.
      * @param ngApimockId The ngApimock id.
      */
-    abstract resetToDefaults(registry: Registry, ngApimockId?: string): void;
+    abstract resetToDefaults(ngApimockId?: string): void;
 
     /**
      * Gets the selections.
@@ -19,7 +24,7 @@ abstract class ResetMocksToDefaultsHandler implements Handler {
      * @param ngApimockId The ngApimock id.
      * @return selections The selections.
      */
-    abstract getSelections(registry: Registry, ngApimockId?: string): {};
+    abstract getSelections(ngApimockId?: string): Observable<{ [key: string]: string }>;
 
 
     /**
@@ -27,17 +32,22 @@ abstract class ResetMocksToDefaultsHandler implements Handler {
      *
      * Handler that takes care of resetting the mocks to defaults.
      */
-    handleRequest(request: http.IncomingMessage, response: http.ServerResponse, next: Function, registry: Registry,
+    handleRequest(request: http.IncomingMessage, response: http.ServerResponse, next: Function,
                   ngApimockId: string): void {
-        this.resetToDefaults(registry, ngApimockId);
-        const selections: {} = this.getSelections(registry, ngApimockId);
+        this.resetToDefaults(ngApimockId);
+        const mocks$ = this._registry.select(selectors.getMocks).first();
+        const selections$ = this.getSelections(ngApimockId).first();
 
-        response.writeHead(200, httpHeaders.CONTENT_TYPE_APPLICATION_JSON);
-        response.end(JSON.stringify({
-                mocks: registry.mocks,
-                selections: selections
-            }
-        ));
+        Observable.combineLatest(
+            mocks$,
+            selections$
+        ).subscribe(([mocks, selections]) => {
+            response.writeHead(200, httpHeaders.CONTENT_TYPE_APPLICATION_JSON);
+            response.end(JSON.stringify({
+                mocks,
+                selections
+            }));
+        });
     }
 }
 

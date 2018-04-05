@@ -1,5 +1,6 @@
 import * as http from 'http';
-import Registry from './registry';
+import {Store} from 'rxjs-reselect';
+import {State} from './store/index';
 
 /** Handler. */
 interface Handler {
@@ -11,7 +12,7 @@ interface Handler {
      * @param registry The registry.
      * @param ngApimockId The ngApimock id.
      */
-    handleRequest (request: http.IncomingMessage, response: http.ServerResponse, next: Function, registry: Registry,
+    handleRequest (request: http.IncomingMessage, response: http.ServerResponse, next: Function,
                    ngApimockId: string): void;
 }
 

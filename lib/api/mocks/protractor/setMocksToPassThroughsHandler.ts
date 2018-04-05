@@ -1,19 +1,18 @@
 import SetMocksToPassThroughsHandler from '../setMocksToPassThroughsHandler';
-import helper from '../../helper';
-import Registry from '../../../registry';
+import {selectors, State} from '../../../store/index';
+import {Store} from 'rxjs-reselect';
+import {Observable} from 'rxjs/Observable';
 
 /** Handler that takes care of setting the mocks to passThroughs for protractor. */
 class ProtractorSetMocksToPassThroughsHandler extends SetMocksToPassThroughsHandler {
     /** @inheritDoc */
-    setToPassThroughs(registry: Registry, ngApimockId?: string): void {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        registry.sessions[ngApimockId].selections = {};
+    setToPassThroughs(ngApimockId?: string): void {
     }
 
     /** @inheritDoc */
-    getSelections(registry: Registry, ngApimockId: string): {} {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        return registry.sessions[ngApimockId].selections;
+    getSelections(ngApimockId: string): Observable<{ [key: string]: string }> {
+        return this._registry.select(selectors.getProtractorSelections)
+            .map(selections => selections[ngApimockId]);
     }
 }
 

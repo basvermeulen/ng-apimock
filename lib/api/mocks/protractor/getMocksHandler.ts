@@ -1,25 +1,20 @@
-import helper from '../../helper';
 import GetMocksHandler from '../getMocksHandler';
-import Registry from '../../../registry';
+import {selectors, State} from '../../../store/index';
+import {Store} from 'rxjs-reselect';
+import {Observable} from 'rxjs/Observable';
 
 /** Handler that takes care of getting all the mocks for protractor. */
 class ProtractorGetMocksHandler extends GetMocksHandler {
     /** @inheritDoc */
-    getSelections(registry: Registry, ngApimockId?: string): { [key: string]: string } {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        return registry.sessions[ngApimockId].selections;
+    getSelections(ngApimockId?: string): Observable<{ [key: string]: string }> {
+        return this._registry.select(selectors.getProtractorSelections)
+            .map(selections => selections[ngApimockId]);
     }
 
     /** @inheritDoc */
-    getEchos(registry: Registry, ngApimockId?: string): { [key: string]: boolean } {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        return registry.sessions[ngApimockId].echos;
-    }
-
-    /** @inheritDoc */
-    getDelays(registry: Registry, ngApimockId?: string): { [key: string]: number } {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        return registry.sessions[ngApimockId].delays;
+    getDelays(ngApimockId?: string): Observable<{ [key: string]: number }> {
+        return this._registry.select(selectors.getProtractorDelays)
+            .map(delays => delays[ngApimockId]);
     }
 }
 

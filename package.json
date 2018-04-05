@@ -1,67 +1,76 @@
 {
-  "name": "ng-apimock",
-  "description": "Node plugin that provides the ability to use scenario based api mocking of angular apps",
-  "version": "1.4.4",
-  "homepage": "https://mdasberg.github.io/ng-apimock",
+  "name": "ng-wsapimock",
+  "description": "ng-apimock for websocket APIs",
+  "version": "0.0.1",
   "author": {
-    "name": "Mischa Dasberg",
-    "email": "mischa@dasberg.nl"
+    "name": "Bas Vermeulen",
+    "email": "bas.vermeulen89@gmail.com"
   },
-  "contributors": [
-    "Justus Romijn <justus.romijn@gmail.com>",
-    "Richard Rijnberk <r.rijnberk@gmail.com>",
-    "Frank Merema <frankmerema@gmail.com>",
-    "Jeroen van de Pol <jeroenvandepol@gmail.com>",
-    "Wim Selles <wim@wswebcreation.nl>"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mdasberg/ng-apimock.git"
+  "license": {
+    "type": "MIT"
   },
-  "bugs": {
-    "url": "https://github.com/mdasberg/ng-apimock/issues"
-  },
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "https://github.com/mdasberg/ng-apimock/blob/master/LICENSE-MIT"
-    }
-  ],
   "main": "tasks/index.js",
   "engines": {
     "node": ">= 0.8.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf ./dist/* && mkdir ./dist/templates && tsc && cp package.json ./dist && cp -R templates/interface ./dist/templates",
     "verify": "tslint -p tsconfig.json",
     "verify-type-check": "npm run verify -- --type-check",
-    "local": "jasmine-node test/unit/*.spec.js && protractor test/protractor/config/protractor-local-interface.conf.js && protractor test/protractor/config/protractor-local-protractor.conf.js",
-    "travis-interface": "protractor test/protractor/config/protractor-travis-interface.conf.js",
-    "travis-protractor": "protractor test/protractor/config/protractor-travis-protractor.conf.js",
-    "release": "npm publish && node dockerize.js && docker build --file=docker/Dockerfile docker -t mdasberg/ng-apimock && docker push mdasberg/ng-apimock"
+    "remotedev": "npx remotedev --hostname=localhost --port=8000",
+    "run": "node test/example/server.js",
+    "local": "protractor test/protractor/config/protractor-local-protractor.conf.js",
+    "release": "npm run build && npm publish dist",
+    "webdriver-start": "node ./node_modules/protractor/bin/webdriver-manager start",
+    "webdriver-update": "node ./node_modules/protractor/bin/webdriver-manager update"
   },
   "dependencies": {
+    "@types/hooker": "^0.2.29",
+    "@types/http-proxy-middleware": "^0.17.4",
+    "@types/jsonschema": "^1.1.1",
+    "@types/remote-redux-devtools": "^0.5.2",
+    "@types/sha1": "^1.1.1",
+    "@types/url-join": "^0.8.2",
+    "@types/uuid": "^3.4.3",
+    "@types/ws": "^4.0.1",
     "angular": "1.6.6",
     "angular-mocks": "1.6.6",
     "angular-resource": "1.6.6",
+    "angular-websocket": "^2.0.1",
     "async": "2.5.0",
     "chokidar": "^1.7.0",
+    "express": "^4.16.3",
+    "express-websocket": "^0.0.1",
     "fs-extra": "4.0.1",
     "glob": "7.1.2",
     "hooker": "0.2.3",
+    "http-proxy-middleware": "^0.17.4",
+    "json-refs": "^3.0.4",
+    "jsonschema": "^1.2.2",
     "lodash": "4.17.4",
     "path": "0.12.7",
+    "redux": "^3.7.2",
+    "redux-observable": "^0.18.0",
+    "remote-redux-devtools": "^0.5.12",
+    "reselect": "^3.0.1",
+    "rxjs": "^5.5.8",
+    "rxjs-reselect": "^1.0.0",
+    "sha1": "^1.1.1",
     "then-request": "4.1.0",
     "url-join": "2.0.2",
-    "uuid": "3.1.0"
+    "uuid": "^3.2.1",
+    "ws": "^5.0.0"
   },
   "keywords": [
     "angular",
+    "websocket",
     "api",
     "mock",
-    "scenario",
-    "httpbackend"
+    "scenario"
   ],
+  "peerDependencies": {
+    "protractor": "^5.2.0"
+  },
   "devDependencies": {
     "@types/async": "2.0.41",
     "@types/chokidar": "^1.7.0",
@@ -74,13 +83,14 @@
     "cucumber": "2.3.1",
     "cucumberjs-junitxml": "1.0.0",
     "jasmine-node": "1.14.5",
-    "protractor": "5.1.2",
+    "protractor": "^5.2.0",
     "protractor-cucumber-framework": "3.1.2",
+    "remotedev-server": "^0.2.4",
     "serve-static": "1.12.3",
     "shortid": "2.2.8",
     "tslint": "5.6.0",
     "tslint-eslint-rules": "4.1.1",
-    "typescript": "2.4.2",
+    "typescript": "~2.6.1",
     "vrsource-tslint-rules": "5.1.1"
   }
 }

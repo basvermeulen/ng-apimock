@@ -2,6 +2,10 @@ import * as glob from 'glob';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import Mock from './mock';
+import {Observable} from 'rxjs/Observable';
+
+const JsonRefs = require('json-refs');
+const sha1 = require('sha1');
 
 /** Registry represents a group of phases grouped under one name. */
 class Processor {
@@ -19,14 +23,31 @@ class Processor {
      * @param {string} directory The directory containing the mocks.
      * @returns {Mock[]} mocks The mocks.
      */
-    processMocks(directory: string): Mock[] {
-        const mocks: Mock[] = [];
-        glob.sync('**/*.json', {
-            cwd: directory,
-            root: '/'
-        }).forEach((file) =>
-            mocks.push(fs.readJsonSync(path.join(directory, file))));
-        return mocks;
+    processMocks(directory: string): Observable<Mock[]> {
+        return new Observable<Mock[]>((observer) => {
+            Promise.all(
+                glob.sync('**/*.mock.json', {
+                    cwd: directory,
+                    root: '/'
+                }).map((file) => {
+                    const filePath = path.join(directory, file);
+                    return this.processMock(filePath);
+                })
+            ).then((mocks: Mock[]) => {
+                observer.next(mocks);
+                observer.complete();
+            });
+        });
+    }
+
+    processMock(filePath: string): Promise<Mock> {
+        // Resolve reference
+        const mock = fs.readJsonSync(filePath);
+        return JsonRefs.resolveRefs(mock).then((mock: Mock) => {
+            const hash = sha1(JSON.stringify(mock));
+            mock.identifier = hash;
+            return mock;
+        });
     }
 
     /**
@@ -34,7 +55,9 @@ class Processor {
      * @param {string} directory The output directory
      */
     generateProtractorMock(directory: string): void {
+        console.log(path.join(Processor.PTD, 'protractor.mock.js'));
         fs.copySync(path.join(Processor.PTD, 'protractor.mock.js'), path.join(directory, 'protractor.mock.js'));
+        fs.copySync(path.join(Processor.PTD, 'protractor.mock.d.ts'), path.join(directory, 'protractor.mock.d.ts'));
     }
 
     /**
@@ -50,8 +73,8 @@ class Processor {
     generateMockingInterface(directory: string): void {
         /** Check if the plugin has a different version of angular as the application. */
         const anmd = !fs.existsSync(path.join(Processor.PNMD, 'angular')) ?
-                path.join(process.cwd(), 'node_modules') :
-                Processor.PNMD,
+            path.join(process.cwd(), 'node_modules') :
+            Processor.PNMD,
             arnmd = !fs.existsSync(path.join(Processor.PNMD, 'angular-resource')) ?
                 path.join(process.cwd(), 'node_modules') :
                 Processor.PNMD,
@@ -59,7 +82,8 @@ class Processor {
             angularResource = path.join(arnmd, 'angular-resource', 'angular-resource.min.js');
 
         // copy the interface files
-        glob.sync('**/*', { cwd: Processor.PTID, root: '/' }).forEach((file) =>
+        console.log(Processor.PTID);
+        glob.sync('**/*', {cwd: Processor.PTID, root: '/'}).forEach((file) =>
             fs.copySync(path.join(Processor.PTID, file), path.join(directory, file)));
 
         fs.copySync(angularJs, path.join(directory, 'js', 'angular.min.js'));

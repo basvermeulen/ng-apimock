@@ -1,30 +1,49 @@
-import helper from '../api/helper';
-import Registry from '../registry';
 import NgApimockHandler from '../ngApimockHandler';
+import {selectors, State} from '../store/index';
+import {Store} from 'rxjs-reselect';
+import {Observable} from 'rxjs/Observable';
+import {Add, Remove, SocketActionTypes} from '../store/actions/sockets';
+import {Socket} from '../store/reducers/sockets';
 
 /** Handler for a request for protractor. */
 class ProtractorNgApimockHandler extends NgApimockHandler {
-    /** @inheritDoc */
-    getSelection(registry: Registry, identifier: string, ngApimockId: string): string {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        return registry.sessions[ngApimockId].selections[identifier];
+    getSockets(ngApimockId?: string): Observable<Socket[]> {
+        return this._registry.select(selectors.getProtractorSocketEntities)
+            .map(sockets => [sockets[ngApimockId]])
     }
 
     /** @inheritDoc */
-    getVariables(registry: Registry, ngApimockId?: string): {} {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        return registry.sessions[ngApimockId].variables;
+    getSelection(identifier: string, ngApimockId: string): Observable<string> {
+        return this._registry.select(selectors.getProtractorSelections)
+            .filter(selections => !!selections[ngApimockId])
+            .map(selections => selections[ngApimockId][identifier]);
     }
 
     /** @inheritDoc */
-    getEcho(registry: Registry, identifier: string, ngApimockId: string): boolean {
-        return registry.sessions[ngApimockId].echos[identifier];
+    getDelay(identifier: string, ngApimockId: string): Observable<number> {
+        return this._registry.select(selectors.getProtractorDelays)
+            .filter(delays => !!delays[ngApimockId])
+            .map(delays => delays[ngApimockId][identifier]);
     }
 
-    /** @inheritDoc */
-    getDelay(registry: Registry, identifier: string, ngApimockId: string): number {
-        return registry.sessions[ngApimockId].delays[identifier];
+    addSocket(socket: Socket, ngApimockId: string): void {
+        this._registry.dispatch({
+            type: SocketActionTypes.Add,
+            socket,
+            ngApimockId
+        });
+        this._socketAdded$.next({socket, ngApimockId});
     }
+
+    removeSocket(socket: Socket, ngApimockId: string): void {
+        this._registry.dispatch({
+            type: SocketActionTypes.Remove,
+            socket,
+            ngApimockId
+        });
+        this._socketRemoved$.next({socket, ngApimockId});
+    }
+
 }
 
 export default ProtractorNgApimockHandler;

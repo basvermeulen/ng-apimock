@@ -6,6 +6,7 @@
 
 # generated
 .tmp
+dist
 
 # Logs
 logs

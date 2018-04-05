@@ -2,6 +2,6 @@
     'use strict';
 
     angular
-        .module('ngApimock-example', ['ngResource']);
+        .module('ngApimock-example', ['ngResource', 'ngWebSocket']);
 
 })();

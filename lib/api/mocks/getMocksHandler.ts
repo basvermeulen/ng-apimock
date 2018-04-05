@@ -1,18 +1,17 @@
 import * as http from 'http';
 import {httpHeaders} from '../../http';
-import Registry from '../../registry';
 import Handler from '../../handler';
+import {selectors, State} from '../../store/index';
+import {Store} from 'rxjs-reselect';
+import {Observable} from 'rxjs/Observable';
+
+import 'rxjs/add/observable/combineLatest';
 
 /** Abstract Handler for Getting the mocks. */
 abstract class GetMocksHandler implements Handler {
 
-    /**
-     * Gets the selections.
-     * @param registry The registry.
-     * @param ngApimockId The ngApimock id.
-     * @return selections The selections.
-     */
-    abstract getSelections(registry: Registry, ngApimockId?: string): { [key: string]: string };
+    constructor(protected _registry: Store<State>) {
+    }
 
     /**
      * Gets the selections.
@@ -20,7 +19,7 @@ abstract class GetMocksHandler implements Handler {
      * @param ngApimockId The ngApimock id.
      * @return selections The selections.
      */
-    abstract getEchos(registry: Registry, ngApimockId?: string): { [key: string]: boolean };
+    abstract getSelections(ngApimockId?: string): Observable<{ [key: string]: string }>;
 
     /**
      * Gets the selections.
@@ -28,7 +27,7 @@ abstract class GetMocksHandler implements Handler {
      * @param ngApimockId The ngApimock id.
      * @return selections The selections.
      */
-    abstract getDelays(registry: Registry, ngApimockId?: string): { [key: string]: number };
+    abstract getDelays(ngApimockId?: string): Observable<{ [key: string]: number }>;
 
 
     /**
@@ -36,22 +35,24 @@ abstract class GetMocksHandler implements Handler {
      *
      * Handler that takes care of getting all the mocks.
      */
-    handleRequest(request: http.IncomingMessage, response: http.ServerResponse, next: Function, registry: Registry,
+    handleRequest(request: http.IncomingMessage, response: http.ServerResponse, next: Function,
                   ngApimockId: string): void {
-        const selections: {} = this.getSelections(registry, ngApimockId);
-        const echos: {} = this.getEchos(registry, ngApimockId);
-        const delays: {} = this.getDelays(registry, ngApimockId);
+        const mocks$ = this._registry.select(selectors.getMocks).first();
+        const selections$ = this.getSelections(ngApimockId).first();
+        const delays$ = this.getDelays(ngApimockId).first();
 
-        response.writeHead(200, httpHeaders.CONTENT_TYPE_APPLICATION_JSON);
-        response.end(JSON.stringify({
-                mocks: registry.mocks,
-                selections: selections,
-                delays: delays,
-                echos: echos,
-                recordings: registry.recordings,
-                record: registry.record
-            }
-        ));
+        Observable.combineLatest(
+            mocks$,
+            selections$,
+            delays$
+        ).subscribe(([mocks, selections, delays]) => {
+            response.writeHead(200, httpHeaders.CONTENT_TYPE_APPLICATION_JSON);
+            response.end(JSON.stringify({
+                mocks,
+                selections,
+                delays,
+            }));
+        });
     }
 }
 

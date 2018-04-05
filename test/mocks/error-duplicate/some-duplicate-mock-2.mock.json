@@ -1,0 +1,8 @@
+{
+  "request": {
+    "$ref": "test/mocks/api/requests/request.schema.json"
+  },
+  "name": "duplicate",
+  "responses": {
+  }
+}

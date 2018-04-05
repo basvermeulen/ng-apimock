@@ -28,13 +28,6 @@
                 headers: {
                     ngapimockid: undefined
                 }
-            },
-            toggleRecord: {
-                method: 'PUT',
-                url: '/ngapimock/mocks/record',
-                headers: {
-                    ngapimockid: undefined
-                }
             }
         });
     }

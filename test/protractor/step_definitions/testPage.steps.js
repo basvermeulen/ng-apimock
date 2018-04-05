@@ -8,9 +8,8 @@
         const testPo = new (require('./../po/test.po'))();
         const mocksDirectory = path.join(process.cwd(), 'test', 'mocks', 'api');
         const responses = {
-            list: fs.readJsonSync(path.join(mocksDirectory, 'some-api-list.json')).responses,
-            update: fs.readJsonSync(path.join(mocksDirectory, 'some-api-post.json')).responses,
-            download: fs.readJsonSync(path.join(mocksDirectory, 'some-api-download.json')).responses
+            list: fs.readJsonSync(path.join(mocksDirectory, 'some-api-list.mock.json')).responses,
+            update: fs.readJsonSync(path.join(mocksDirectory, 'some-update.mock.json')).responses
         };
         const passThroughResponses = {
             list: [{a: "b"}],
@@ -37,30 +36,10 @@
         Then(/^the passThrough response should be returned for mock with name (.*)$/, (name) =>
             expect(testPo[name].data.getText()).to.eventually.equal(JSON.stringify(passThroughResponses[name])));
 
-        Then(/^the (.*) response should be downloaded for mock with name (.*)$/, (scenario, name) =>
-            browser.wait(() => {
-                if (fs.existsSync(browser.params.default_directory + 'my.pdf')) {
-                    const actual = fs.readFileSync(browser.params.default_directory + 'my.pdf');
-                    const expected = fs.readFileSync(responses[name][scenario].file);
-                    return actual.equals(expected);
-                } else {
-                    return browser.params.environment === 'TRAVIS'
-                }
-            }, 5000));
-
         Then(/^the status code should be (.*) for mock with name (.*)$/, (statusCode, name) =>
             expect(testPo[name].error.getText()).to.eventually.equal(statusCode === 'undefined' ? '' : statusCode));
 
-        When(/^I post data$/, () => testPo.update.button.click());
-
-        When(/^I download the pdf$/, () => {
-            fs.removeSync(browser.params.default_directory + 'my.pdf');
-            return testPo.download.button.click();
-        });
-
         When(/^I refresh$/, () => testPo.list.refresh.click());
-
-        When(/^I refresh using jsonp$/, () => testPo.list.refreshJsonp.click());
 
         Then(/^the loading warning is visible$/, () =>
             expect(testPo.list.loading.getText()).to.eventually.equal('loading'));

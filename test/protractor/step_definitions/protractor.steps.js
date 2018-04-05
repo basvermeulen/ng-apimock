@@ -7,11 +7,9 @@
         const path = require('path');
         const mocksDirectory = path.join(process.cwd(), 'test', 'mocks', 'api');
         const responses = {
-            list: fs.readJsonSync(path.join(mocksDirectory, 'some-api-list.json')).responses,
-            update: fs.readJsonSync(path.join(mocksDirectory, 'some-api-post.json')).responses,
-            download: fs.readJsonSync(path.join(mocksDirectory, 'some-api-download.json')).responses
+            list: fs.readJsonSync(path.join(mocksDirectory, 'some-api-list.mock.json')).responses,
+            update: fs.readJsonSync(path.join(mocksDirectory, 'some-update.mock.json')).responses
         };
-
 
         Given(/^a mock with name (.*) has marked (.*) as its default scenario$/, (name, scenario) =>
             expect(responses[name][scenario]['default']).to.be.true);

@@ -1,19 +1,24 @@
 import ResetMocksToDefaultsHandler from '../resetMocksToDefaultsHandler';
-import helper from '../../helper';
-import Registry from '../../../registry';
+
+import {Observable} from 'rxjs/Observable';
+import {selectors, State} from '../../../store/index';
+import {Store} from 'rxjs-reselect';
+import {SelectionActionTypes} from '../../../store/actions/selections';
 
 /** Handler that takes care of resetting the mocks to defaults for protractor. */
 class ProtractorResetMocksToDefaultsHandler extends ResetMocksToDefaultsHandler {
     /** @inheritDoc */
-    resetToDefaults(registry: Registry, ngApimockId: string): void {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        registry.sessions[ngApimockId].selections = JSON.parse(JSON.stringify(registry.defaults));
+    resetToDefaults(ngApimockId: string): void {
+        this._registry.dispatch({
+            type: SelectionActionTypes.ClearAll,
+            ngApimockId
+        });
     }
 
     /** @inheritDoc */
-    getSelections(registry: Registry, ngApimockId: string): {} {
-        helper.protractor.addSessionIfNonExisting(registry, ngApimockId);
-        return registry.sessions[ngApimockId].selections;
+    getSelections(ngApimockId: string): Observable<{ [key: string]: string }> {
+        return this._registry.select(selectors.getProtractorSelections)
+            .map(selections => selections[ngApimockId]);
     }
 }
 

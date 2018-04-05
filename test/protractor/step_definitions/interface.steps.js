@@ -10,9 +10,8 @@
         const mockingPo = new (require('./../po/mocking.po'))();
         const mocksDirectory = path.join(process.cwd(), 'test', 'mocks', 'api');
         const responses = {
-            list: fs.readJsonSync(path.join(mocksDirectory, 'some-api-list.json')).responses,
-            update: fs.readJsonSync(path.join(mocksDirectory, 'some-api-post.json')).responses,
-            download: fs.readJsonSync(path.join(mocksDirectory, 'some-api-download.json')).responses
+            list: fs.readJsonSync(path.join(mocksDirectory, 'some-api-list.mock.json')).responses,
+            update: fs.readJsonSync(path.join(mocksDirectory, 'some-update.mock.json')).responses
         };
 
         Then(/^I switch to test page$/, () => browser.getAllWindowHandles()
@@ -33,6 +32,7 @@
 
         Then(/^the following scenario's should be selected:$/, (table) =>
             protractor.promise.all(table.hashes().map((row) => {
+                browser.pause();
                 const actual = mockingPo.mock(row.name).scenario.$$(('option[selected="selected"]')).first().getText();
                 const expected = row.scenario;
                 return expect(actual).to.eventually.equal(expected);
@@ -52,26 +52,6 @@
         When(/^I update variable (.*) with value (.*)$/, (name, value) => mockingPo.updateVariable(name, value));
 
         When(/^I delete variable (.*)$/, (name) => mockingPo.deleteVariable(name));
-
-        When(/^I (enable|disable) echo for mock with name (.*)/, (able, name) =>
-            mockingPo.mock(name).echo.click());
-
-        Then(/^echoing should be (enabled|disabled) for mock with name (.*)/, (able, name) => {
-            // no idea how I can check the server log for now check manually
-        });
-
-        When(/^I enable recording$/, () =>
-            mockingPo.record.click());
-
-        When(/^I (show|hide) the recordings for mock with name (.*)$/, (toggle, name) =>
-            mockingPo.mock(name).recordings[toggle].click());
-
-        Then(/^there should only be (\d+) recordings present for mock with name (.*)/, (total, name) =>
-            expect(mockingPo.mock(name + '-recordings').recordings.records.count())
-                .to.eventually.be.equal(parseInt(total)));
-
-        Then(/^there should be no recordings present for mock with name (.*)/, (name) =>
-            expect(mockingPo.mock(name + '-recordings').isPresent()).to.eventually.be.false);
 
         Then(/^I delay the response for mock with name (.*) for (\d+) milliseconds$/, (name, delay) =>
             mockingPo.mock(name).delay.clear().sendKeys(parseInt(delay))

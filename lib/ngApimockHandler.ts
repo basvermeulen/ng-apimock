@@ -1,49 +1,84 @@
 import * as http from 'http';
 import * as fs from 'fs-extra';
 import * as url from 'url';
-import Mock from '../tasks/mock';
+import * as WebSocket from 'ws';
+import {Mock} from './model/mock';
 import {httpHeaders} from './http';
-import Registry from './registry';
+import {Validator} from 'jsonschema';
 import Handler from './handler';
+import {selectors, State} from './store/index';
+import {Store} from 'rxjs-reselect';
+import {Observable} from 'rxjs/Observable';
+import {Socket} from './store/reducers/sockets';
+import {Add} from './store/actions/sockets';
+import {Subject} from 'rxjs/Subject';
+
+import 'rxjs/add/operator/first';
+import 'rxjs/add/operator/map';
+import 'rxjs/add/operator/combineLatest';
+
+export interface WebSocketServerResponse extends http.ServerResponse {
+    websocket: (client: any) => void;
+}
 
 /** Abstract Handler for a request. */
 abstract class NgApimockHandler implements Handler {
-    MAX_RECORDINGS_PER_MOCK = 2;
+
+    private _schemaValidator = new Validator();
+    protected _socketAdded$ = new Subject<{ socket: Socket; ngApimockId?: string; }>();
+    protected _socketRemoved$ = new Subject<{ socket: Socket; ngApimockId?: string; }>();
+
+    constructor(protected _registry: Store<State>) {
+        // Listen for new connections.
+        this._socketAdded$.subscribe(({socket, ngApimockId}) => {
+            socket.on('message', (message: any) => {
+                this.getMatchingMock(JSON.parse(message))
+                    .first()
+                    .subscribe((mock) => {
+                        if (mock) {
+                            this.emitResponse(mock, ngApimockId);
+                        }
+                    });
+            });
+
+            socket.on('close', () => {
+                this.removeSocket(socket, ngApimockId);
+            });
+        });
+    }
 
     /**
      * Gets the selection.
-     * @param registry The registry.
      * @param identifier The mock identifier.
      * @param ngApimockId The ngApimock id.
      * @return selection The selection.
      */
-    abstract getSelection(registry: Registry, identifier: string, ngApimockId: string): string;
+    abstract getSelection(identifier: string, ngApimockId: string): Observable<string>;
 
     /**
-     * Gets the variables.
-     * @param registry The registry.
+     * Get the sockets.
      * @param ngApimockId The ngApimock id.
-     * @return variables The variables.
+     * @return sockets The sockets.
      */
-    abstract getVariables(registry: Registry, ngApimockId?: string): {};
-
-    /**
-     * Gets the echo indicator.
-     * @param registry The registry.
-     * @param identifier The mock identifier.
-     * @param ngApimockId The ngApimock id.
-     * @return indicator The echo indicator.
-     */
-    abstract getEcho(registry: Registry, identifier: string, ngApimockId: string): boolean;
+    abstract getSockets(ngApimockId?: string): Observable<Socket[]>;
 
     /**
      * Gets the delay in millis.
-     * @param registry The registry.
      * @param identifier The mock identifier.
      * @param ngApimockId The ngApimock id.
      * @return delay The delay.
      */
-    abstract getDelay(registry: Registry, identifier: string, ngApimockId: string): number;
+    abstract getDelay(identifier: string, ngApimockId: string): Observable<number>;
+
+    abstract addSocket(socket: Socket, ngApimockId: string): void;
+
+    abstract removeSocket(socket: Socket, ngApimockId: string): void;
+
+    private isWebsocketUpgradeRequest(request: http.IncomingMessage): boolean {
+        const {headers} = request;
+        return headers.connection === 'Upgrade' || headers.upgrade === 'websocket';
+    }
+
 
     /**
      * @inheritDoc
@@ -54,105 +89,43 @@ abstract class NgApimockHandler implements Handler {
      * - a normal api call
      * - a record call
      */
-    handleRequest(request: http.IncomingMessage, response: http.ServerResponse, next: Function, registry: Registry,
-                  ngApimockId: string): void {
-        // #1
-        const match = this.getMatchingMock(registry.mocks, request.url, request.method);
-        let payload: string;
-
-        if (match) {
-            const selection = this.getSelection(registry, match.identifier, ngApimockId);
-            const variables = this.getVariables(registry, ngApimockId);
-            const mockResponse = match.responses[selection];
-            const requestDataChunks: Buffer[] = [];
-
-            request.on('data', (rawData: Buffer) => {
-                requestDataChunks.push(rawData);
+    handleRequest(request: http.IncomingMessage, response: WebSocketServerResponse, next: Function, ngApimockId: string): void {
+        if (this.isWebsocketUpgradeRequest(request) && response.websocket) {
+            response.websocket((client: any) => {
+                this.addSocket(client, ngApimockId);
             });
-
-
-            if (mockResponse !== undefined) {
-                request.on('end', () => {
-                    payload = Buffer.concat(requestDataChunks).toString();
-
-                    if (this.getEcho(registry, match.identifier, ngApimockId)) {
-                        console.log(match.method + ' request made on \'' + match.expression + '\' with payload: ', payload);
-                    }
-
-                    const statusCode = mockResponse.status || 200;
-                    const jsonCallbackName = this.getJsonCallbackName(request.url);
-                    let headers: { [key: string]: string };
-                    let chunk: Buffer | string;
-
-                    if (this.isBinaryResponse(mockResponse)) {
-                        headers = mockResponse.headers || httpHeaders.CONTENT_TYPE_BINARY;
-                        chunk = fs.readFileSync(mockResponse.file);
-                    } else {
-                        headers = mockResponse.headers || httpHeaders.CONTENT_TYPE_APPLICATION_JSON;
-                        chunk = this.updateData(mockResponse.data, variables, (match.isArray ? [] : {}));
-                    }
-
-                    if (jsonCallbackName !== false) {
-                        chunk = jsonCallbackName + '(' + chunk + ')';
-                    }
-
-                    const mockDelay = this.getDelay(registry, match.identifier, ngApimockId);
-                    const _delay = mockDelay === null || mockDelay === undefined ? mockResponse.delay : mockDelay;
-
-                    const sendResponse = () => {
-                        response.writeHead(statusCode, headers);
-                        response.end(chunk);
-
-                        if (registry.record) {
-                            this.storeRecording(payload, chunk, request, statusCode, registry, match.identifier);
-                        }
-                    };
-
-                    if (_delay) {
-                        setTimeout(sendResponse, _delay);
-                    } else {
-                        sendResponse();
-                    }
-                });
-            } else {
-                // remove the recording header to stop recording after this call succeeds
-                if (registry.record && !request.headers.record) {
-                    request.on('end', () => {
-                        payload = Buffer.concat(requestDataChunks).toString();
-
-                        const headers = request.headers;
-                        const host = <string>headers.host;
-                        const options = {
-                            host: host.split(':')[0],
-                            port: Number(host.split(':')[1]),
-                            path: request.url,
-                            method: request.method,
-                            headers: headers
-                        };
-
-                        headers.record = 'off';
-
-                        const req = http.request(options, (res: http.IncomingMessage) => {
-                            res.setEncoding('utf8');
-                            res.on('data', (chunk: Buffer) => {
-                                this.storeRecording(payload, chunk.toString('utf8'), request, res.statusCode, registry,
-                                    match.identifier);
-                                response.end(chunk);
-                            });
-                        });
-
-                        req.on('error', function (e) {
-                            response.end(e);
-                        });
-                        req.end();
-                    });
-                } else {
-                    next();
-                }
-            }
         } else {
             next();
         }
+    }
+
+    emitResponse(mock: Mock, ngApimockId: string) {
+        const response$ = this.getSelection(mock.identifier, ngApimockId)
+            .first()
+            .map(selection => mock.responses[selection]);
+
+        const sockets$ = this.getSockets(ngApimockId);
+        const variables = {};
+        response$
+            .withLatestFrom(sockets$)
+            .subscribe(([response, sockets]) => {
+            if (response) {
+                const data = this.updateData(response.data, variables, (mock.isArray ? [] : {}));
+                const delay = this.getDelay(mock.identifier, ngApimockId);
+
+                sockets
+                    .filter(socket => socket && socket.readyState === socket.OPEN)
+                    .forEach((socket) => {
+                    if (delay) {
+                        setTimeout(() => {
+                            socket.send(data);
+                        }, delay);
+                    } else {
+                        socket.send(data);
+                    }
+                });
+            }
+        });
     }
 
     /**
@@ -162,22 +135,13 @@ abstract class NgApimockHandler implements Handler {
      * @param method The http request method.
      * @returns matchingMock The matching mock.
      */
-    getMatchingMock(mocks: Mock[], requestUrl: string, method: string): Mock {
-        return mocks.filter(_mock => {
-            const expressionMatches = new RegExp(_mock.expression).exec(decodeURI(requestUrl)) !== null,
-                methodMatches = _mock.method === method;
-
-            return expressionMatches && methodMatches;
-        })[0];
-    }
-
-    /**
-     * Indicates if the given response is a binary response.
-     * @param response The response
-     * @return {boolean} indicator The indicator.
-     */
-    private isBinaryResponse(response: any): boolean {
-        return response.file !== undefined;
+    getMatchingMock(request: any): Observable<Mock> {
+        return this._registry.select(selectors.getMocks)
+            .map((mocks: Mock[]) => {
+                return mocks.find(({request: schema}) => {
+                    return schema && this._schemaValidator.validate(request, schema).valid;
+                });
+            });
     }
 
     /**
@@ -203,46 +167,6 @@ abstract class NgApimockHandler implements Handler {
         return _data;
     }
 
-    /**
-     * Get the JSONP callback name.
-     * @param requestUrl The request url.
-     * @returns {string|boolean} callbackName Either the name or false.
-     */
-    private getJsonCallbackName(requestUrl: string): string | boolean {
-        const url_parts: any = url.parse(requestUrl, true);
-        if (!url_parts.query || !url_parts.query.callback) {
-            return false;
-        }
-        return url_parts.query.callback;
-    }
-
-    /**
-     * Stores the recording with the given mock.
-     * @param payload The payload.
-     * @param chunk The chunk.
-     * @param request The http request.
-     * @param statusCode The status code.
-     * @param registry The registry.
-     * @param identifier The identifier.
-     */
-    private storeRecording(payload: string, chunk: string | Buffer, request: http.IncomingMessage, statusCode: number,
-                           registry: Registry, identifier: string) {
-        const result = {
-            data: typeof chunk === 'string' ? chunk : chunk.toString('utf8'),
-            payload: payload,
-            datetime: new Date().getTime(),
-            method: request.method,
-            url: request.url,
-            statusCode: statusCode
-        };
-
-        if (registry.recordings[identifier] === undefined) {
-            registry.recordings[identifier] = [];
-        } else if (registry.recordings[identifier].length > (this.MAX_RECORDINGS_PER_MOCK - 1)) {
-            registry.recordings[identifier].shift();
-        }
-        registry.recordings[identifier].push(result);
-    }
 }
 
 export default NgApimockHandler;

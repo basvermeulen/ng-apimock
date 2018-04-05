@@ -1,26 +1,41 @@
-import Registry from '../../../registry';
 import UpdateMockHandler from '../updateMockHandler';
+import {Store} from 'rxjs-reselect';
+
+import {Select, SelectionActionTypes} from '../../../store/actions/selections';
+import {Delay, DelayActionTypes} from '../../../store/actions/delays';
+import {State} from '../../../store/index';
 
 /** Handler that takes care of updating the mock configuration for runtime. */
 class RuntimeUpdateMockHandler extends UpdateMockHandler {
     /** @inheritDoc */
-    handlePassThroughScenario(registry: Registry, identifier: string): void {
-        delete registry.selections[identifier];
+    handlePassThroughScenario(identifier: string): void {
+        this._registry.dispatch({
+            type: SelectionActionTypes.Select,
+            identifier,
+            selection: null
+        });
     }
 
     /** @inheritDoc */
-    handleScenarioSelection(registry: Registry, identifier: string, scenario: string): void {
-        registry.selections[identifier] = scenario;
+    handleScenarioSelection(identifier: string, scenario: string): void {
+        this._registry.dispatch({
+            type: SelectionActionTypes.Select,
+            identifier,
+            selection: scenario
+        });
+        this._scenarioSelected$.next({
+            identifier,
+            scenario
+        });
     }
 
     /** @inheritDoc */
-    handleDelay(registry: Registry, identifier: string, delay: number): void {
-        registry.delays[identifier] = delay;
-    }
-
-    /** @inheritDoc */
-    handleEcho(registry: Registry, identifier: string, echo: boolean): void {
-        registry.echos[identifier] = echo;
+    handleDelay(identifier: string, delay: number): void {
+        this._registry.dispatch({
+            type: DelayActionTypes.Delay,
+            identifier,
+            delay
+        });
     }
 }
 
